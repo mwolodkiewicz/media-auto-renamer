@@ -1,7 +1,9 @@
 # media-auto-renamer
-Automatic renamer of media files (JPEG image and MOV/MP4 video) to include the media creation date and time string, extracted from the metadata.
+Batch auto-renamer of media files (JPEG image and MOV/MP4 video), to include the media creation date and time string, extracted from the metadata.
 
-Originally written in Python2, currently written in Python3.
+Initially written in Python2, currently written in Python3.
+
+Tested on Windows platform, but should work also on Linux platforms and also within Cygwin environment.
 
 ## Introduction
 
@@ -16,13 +18,48 @@ containing creation date and time (with seconds precision), appears to solve the
 Firstly, the risk of name clash is minimized. Secondly, it makes media files
 to self-arrange (by file names) chronorogically.
 
+## Implementation details
+
+Description will be extended for the following features, which have been implemented:
+* format of date and time string
+* using recursive mode
+* using dry-run mode
+* informing about duplicates during rename (and error/warning reporting in general)
+* skipping rename
+
 ## Dependencies
 
-The following Python packages are used and needs to be installed, presumable with ''pip install'':
-* exifread
+The following Python packages are used and needs to be installed, presumably with *pip install*:
 * pathlib
 * imghdr
+* exifread
 * hachoir - removed
+
+## Usage
+
+Getting help for supported options:
+
+`python.exe main3.py --help`
+
+Renaming media files in single specific directory (non-recursively):
+
+`python.exe main3.py --path "\\NAS\Media\Photo\Vacations 2019-06"`
+
+Like above, but in dry-run mode, i.e. without actually renaming any files:
+
+`python.exe main3.py --path "\\NAS\Media\Photo\Vacations 2019-06" --dry-run`
+
+Renaming media files in sub-directories (recursively):
+
+`python.exe main3.py --path "\\NAS\Media\Photo" --recursive --max-depth=2`
+
+## Future considerations
+
+Things to do:
+1. Check on a Linux platform, paths processing specifically.
+1. Check within Cygwin environment; ditto.
+1. Remove redundant option `--recursive`, use just option `--max-depth` instead.
+1. Add option to define custom format for date and time string
 
 ## Credits
 
