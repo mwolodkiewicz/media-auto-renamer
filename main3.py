@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf8  -*-
 
-r"""Utility for renaming JPEG image and MOV/MP4 movie files to start with creation date-time string. Python3 version.
+r"""Utility for batch renaming of media (JPEG image and MOV/MP4 video) files to start with creation date-time string. Python3 version.
 
-Used to enable automatic chronological ordering of images and movies in various file managers.
-
-Reads EXIF tag 'DateTimeOriginal' for JPEG images.
-Reads creation_data
-
-
-> python main3.py -f -d -e -p "C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo"
-> python main3.py -f -d -e -p "//NAS22327F/Multimedia/Zjdecie\2017-01 biegówki Zbychowo"
+Reads EXIF tag 'DateTimeOriginal' for JPEG image files.
 """
 
+__version__ = "0.2"
 __author__ = "Marcin Wolodkiewicz"
-__status__ = "Prototype"
+__status__ = "Development"
 
 
 import re
@@ -117,7 +111,7 @@ def get_mov_timestamps(filename):
             if modification_time.year < 1990:  # invalid or censored data
                 modification_time = None
 
-    print('  DEBUG: creation_time: "%r", modification_time: "%r"' % (creation_time, modification_time))
+    # print('  DEBUG: creation_time: "%r", modification_time: "%r"' % (creation_time, modification_time))
 
     return creation_time, modification_time
 
@@ -163,26 +157,27 @@ def process_directory(dir_path, dir_depth, options):
     global files_count, processed_files_count, renamed_files_count
 
     if options.max_depth > 0:
-        print('Processing directory "%s" recursively at depth %d ...' % (dir_path.resolve(), dir_depth))
+        print('Processing directory path "%s" recursively at depth %d ... ' % (dir_path.resolve(), dir_depth))
     else:
-        print('Processing directory "%s" non-recursively ...' % dir_path.resolve())
+        print('Processing directory path "%s" non-recursively ... ' % dir_path.resolve())
 
     for tmp_path in dir_path.iterdir():
-        print('tmp_path=%r' % tmp_path)
+        # print('  DEBUG: tmp_path=%r' % tmp_path)
 
         if tmp_path.is_dir():
             if options.max_depth > dir_depth:
                 process_directory(tmp_path, dir_depth +1, options)
                 continue
             else:
-                print('  WARNING: not processing sub-directory path "%s", because of reached maximum depth of %d ...' % (tmp_path, options.max_depth))
+                print('  WARNING: Not processing sub-directory path "%s", because of reached maximum depth of %d ... ' % (tmp_path, options.max_depth))
         elif not tmp_path.is_file():
-            print('  WARNING: skipping not a file path "%s" ...' % tmp_path)
+            print('  INFO: Path "%s" is not a file => skipping ... ' % tmp_path)
             continue
+
         file_path = tmp_path
 
         files_count += 1
-        # print('Processing file %d: "%s" ...' % (files_count, file_path))
+        # print('Processing file %d: "%s" ... ' % (files_count, file_path))
 
         file_name = file_path.name
         # parent_dir_path = file_path.parent
@@ -195,7 +190,7 @@ def process_directory(dir_path, dir_depth, options):
         guessed_mime_type = mimetypes.MimeTypes().guess_type(file_path.as_uri())[0]
         # print('  DEBUG: guessed_mime_type="%r" ' % (guessed_mime_type,))
         if guessed_mime_type is None:
-            print('  WARNING! File path "%s" cannot be quessed its mime-type => skipping ... ' % file_path)
+            print('  WARNING: File path "%s" cannot be quessed its mime-type => skipping ... ' % file_path)
             continue
 
         date_time_search = date_time_search_re.match(file_name)
@@ -208,7 +203,7 @@ def process_directory(dir_path, dir_depth, options):
             # print('  DEBUG: img_type=%s' % (img_type,))
 
             if img_type != 'jpeg':
-                print('  WARNING! File path "%s" (image) does not contain JPEG image header => skipping ... ' % file_path)
+                print('  WARNING: File path "%s" (image) does not contain JPEG image header => skipping ... ' % file_path)
                 continue
 
             processed_files_count += 1
@@ -219,9 +214,9 @@ def process_directory(dir_path, dir_depth, options):
                     current_date_time_prefix = date_time_search.groups()[0]
                     current_date_time_str = date_time_search.groups()[1]
                     if current_date_time_prefix == '':
-                        print('  WARNING: File path/name "%s" (image) starts with some other date-time string "%s"' % (file_path, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (image) starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
                     else:
-                        print('  WARNING: File path/name "%s" (image) contains some other date-time string "%s"' % (file_path, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (image) contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
                     print(' => fast mode - skipping ... ')
                     continue
 
@@ -239,7 +234,7 @@ def process_directory(dir_path, dir_depth, options):
                 if 'EXIF DateTimeOriginal' in exif_tags:
                     date_time_str = str(exif_tags['EXIF DateTimeOriginal']).replace(':', '').replace(' ', '_')
                 else:
-                    print('  WARNING! File path "%s" (image) is missing an EXIF tag for original/creation date-time => skipping ... ' % file_path)
+                    print('  WARNING: File path "%s" (image) is missing an EXIF tag for original/creation date-time => skipping ... ' % file_path)
                     continue
 
         elif guessed_mime_type.startswith('video'):
@@ -251,9 +246,9 @@ def process_directory(dir_path, dir_depth, options):
                     current_date_time_prefix = date_time_search.groups()[0]
                     current_date_time_str = date_time_search.groups()[1]
                     if current_date_time_prefix == '':
-                        print('  WARNING: File path/name "%s" (video) starts with some other date-time string "%s"' % (file_path, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (video) starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
                     else:
-                        print('  WARNING: File path/name "%s" (video) contains some other date-time string "%s"' % (file_path, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (video) contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
                     print(' => fast mode - skipping ... ')
                     continue
 
@@ -269,7 +264,7 @@ def process_directory(dir_path, dir_depth, options):
                 continue
 
             if date_time is None:
-                print('  WARNING! File path "%s" (video) is missing original/creation date-time => skipping ... ' % file_path)
+                print('  WARNING: File path "%s" (video) is missing original/creation date-time => skipping ... ' % file_path)
                 continue
 
             date_time_str = date_time.strftime("%Y%m%d_%H%M%S")
@@ -340,7 +335,7 @@ def process_directory(dir_path, dir_depth, options):
 
         #     mov_parser.stream._input.close()
         else:
-            print('  INFO: Guessed mime-type is neither image nor video => skipping ... ')
+            print('  INFO: File name "$s" guessed mime-type is neither image nor video => skipping ... ' % file_name)
             continue
 
 
@@ -394,20 +389,20 @@ def process_directory(dir_path, dir_depth, options):
         new_file_path = file_path.with_name(new_file_name)
         # print('new_file_path=%s' % (new_file_path,))
         if new_file_path.exists():
-            print('  ERROR! New path "%s" already exists => skipping ... ' % (new_file_path,))
-            ## TODO: compare hashes, erase duplicate?
+            ## TODO: consider using the '--force' option to erase duplicate?
             if read_sha1_hexhash(file_path) == read_sha1_hexhash(new_file_path):
-                print('  WARNING! New path and original path seems to be identical files; consider removing duplicate')
-
+                print('  WARNING: New file name "%s" already exists and is identical file to the original file name "%s"; consider removing duplicate => skipping ... ' % (new_file_name, file_name))
+            else:
+                print('  ERROR: New file name "%s" already exists and is different file than the original file name "%s"; consider manual renaming => skipping ... ' % (new_file_name, file_name))
             continue
 
         if options.dry_run is not True:
-            print('  INFO: Renaming file "%s" to "%s" ... ' % (file_path, new_file_path))
+            print('  INFO: Renaming file name "%s" to "%s" ... ' % (file_name, new_file_name))
             # try:
             file_path.rename(new_file_path)
             # except
         else:
-            print('  INFO: Dry-run - would be renaming file "%s" to "%s" ... ' % (file_path, new_file_path))
+            print('  INFO: Dry-run - would be renaming file name "%s" to "%s" ... ' % (file_name, new_file_name))
 
 
 def main(argv=None):

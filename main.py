@@ -1,18 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf8  -*-
 
-r"""Utility for renaming JPEG image and MOV/MP4 movie files to start with creation date-time string. Python2 version.
+r"""Utility for batch renaming media (JPEG image and MOV/MP4 video) to start with creation date-time string. Abandoned Python2 version.
 
-Used to enable automatic chronological ordering of images and movies in various file managers.
-
-Reads EXIF tag 'DateTimeOriginal' for JPEG images.
-Reads creation_data
-
-
-> python main.py -f -d -e -p "C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo"
-> python main.py -p "C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo"
+Reads EXIF tag 'DateTimeOriginal' for JPEG image files.
+Reads 'creation_date' from movie headers fro MOV/MP4 video files.
 """
 
+__version__ = "0.1"
 __author__ = "Marcin Wolodkiewicz"
 __status__ = "Prototype"
 
@@ -94,7 +89,7 @@ def main(argv=None):
     parser = optparse.OptionParser()
     parser.add_option('-p', '--path', action='store', default='.', dest='path', help='working directory path containing image files to rename; default is current directory') #, metavar='')
     parser.add_option('-r', '--recursive', action='store_true', default=False, dest='recursive', help='whether to process working directory recursively')
-    parser.add_option('-e', '--erase', action='store_true', default=False, dest='erase', help='whether to completely erase original file name (but keep extendsion); by default prepends the data-time string to the original name')
+    parser.add_option('-e', '--erase', action='store_true', default=False, dest='erase', help='whether to completely erase original file name (but keep extension); by default prepends the data-time string to the original name')
     parser.add_option('-d', '--dry-run', action='store_true', default=False, dest='dry_run', help='whether to run in dry-mode, i.e. without actually renaming image files')
     parser.add_option('-f', '--force', action='store_true', default=False, dest='force', help='whether to force renaming even in current file name contains date-time string')
 
