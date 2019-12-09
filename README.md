@@ -1,9 +1,9 @@
 # media-auto-renamer
-Batch auto-renamer of media files (JPEG image and MOV/MP4 video), to include the media creation date and time string, extracted from the metadata.
+Program for batch renaming of media files (JPEG image and MOV/MP4 video), to include the media creation date and time string, extracted from the media file metadata.
 
-Initially written in Python2, currently written in Python3.
+Initially written in/for Python2, currently written/maintained in/for Python3.
 
-Tested on Windows platform, but should work also on Linux platforms and also within Cygwin environment.
+Tested on Windows platform, but should work also on Linux platforms and within Windows Subsystem for Linux (WSL) environment.
 
 ## Introduction
 
@@ -29,7 +29,7 @@ Description will be extended for the following features, which have been impleme
 
 ## Dependencies
 
-The following Python packages are used and needs to be installed, presumably with *pip install*:
+The following Python packages are used and needs to be installed, presumably with *pip3[.exe] install*:
 * pathlib
 * imghdr
 * exifread
@@ -39,27 +39,29 @@ The following Python packages are used and needs to be installed, presumably wit
 
 Getting help for supported options:
 
-`python.exe main3.py --help`
+`python3[.exe] main3.py --help`
 
 Renaming media files in single specific directory (non-recursively):
 
-`python.exe main3.py --path "\\NAS\Media\Photo\Vacations 2019-06"`
+`python3[.exe] main3.py --path "\\NAS\Media\Photo\2019-06 Vacations"`
 
 Like above, but in dry-run mode, i.e. without actually renaming any files:
 
-`python.exe main3.py --path "\\NAS\Media\Photo\Vacations 2019-06" --dry-run`
+`python3[.exe] main3.py --path "C:\Users\Marcin\Pictures\Vacations 2019-06" --dry-run`
 
 Renaming media files in sub-directories (recursively):
 
-`python.exe main3.py --path "\\NAS\Media\Photo" --recursive --max-depth=2`
+`python3[.exe] main3.py --path "\\NAS\Media\Photo" --recursive --max-depth=2 --fast`
 
 ## Future considerations
 
 Things to do:
 1. Check on a Linux platform, paths processing specifically.
-1. Check within Cygwin environment; ditto.
+1. Check within Cygwin environment; ditto. Kind of obsoleted by the Windows Subsystem for Linux concept.
 1. Remove redundant option `--recursive`, use just option `--max-depth` instead.
 1. Add option to define custom format for date and time string
+1. Add option to process either movie or image files.
+1. Tweak output verbosity level.
 
 ## Credits
 
