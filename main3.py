@@ -124,8 +124,7 @@ import hashlib
 BLOCKSIZE = 65536
 
 def read_sha1_hexhash(filename):
-   """"This function returns the SHA-1 hash
-   of the file passed into it"""
+   """"This function returns the SHA-1 hash of the file passed into it"""
 
    # make a hash object
    h = hashlib.sha1()
@@ -199,6 +198,10 @@ def process_directory(dir_path, dir_depth, options):
         date_time_str = None
 
         if guessed_mime_type.startswith('image'):
+            if options.skip_image is True:
+                print ('  INFO: File name "%s" guessed mime-type is image, which is not to be processed => skipping ...' % file_name)
+                continue
+
             img_type = imghdr.what(file_path)
             # print('  DEBUG: img_type=%s' % (img_type,))
 
@@ -238,6 +241,10 @@ def process_directory(dir_path, dir_depth, options):
                     continue
 
         elif guessed_mime_type.startswith('video'):
+            if options.skip_video is True:
+                print ('  INFO: File name "%s" guessed mime-type is video, which is not ot be processed => skipping ...' % file_name)
+                continue
+
             processed_files_count += 1
 
             ## optimization(?) for fast mode - skip file already containing some data/time string
@@ -356,12 +363,12 @@ def process_directory(dir_path, dir_depth, options):
             current_date_time_str = date_time_search.groups()[1]
             if current_date_time_prefix == '':
                 if current_date_time_str == date_time_str:
-                    print('  WARNING: File name "%s" already starts with original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  INFO: File name "%s" already starts with original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
                 else:
                     print('  WARNING: File name "%s" apparently starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
             else:
                 if current_date_time_str == date_time_str:
-                    print('  WARNING: File name "%s" already contains original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  INFO: File name "%s" already contains original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
                 else:
                     print('  WARNING: File name "%s" apparently contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
 
@@ -420,16 +427,18 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv
 
-    # print 'argv=%r' % (argv,)
+    # print '  DEBUG: argv=%r' % (argv,)
 
     parser = optparse.OptionParser()
-    parser.add_option('-p', '--path', action='store', default='.', dest='path', help='working directory path containing image files to rename; default is current directory') #, metavar='')
-    parser.add_option('-r', '--recursive', action='store_true', default=False, dest='recursive', help='whether to process working directory recursively; see also option --max-depth')
+    parser.add_option('-p', '--path', action='store', default='.', dest='path', help='directory path to start processing from; default is the current directory') #, metavar='')
+    parser.add_option('-r', '--recursive', action='store_true', default=False, dest='recursive', help='whether to process directories recursively; obsoleted by option --max-depth')
     parser.add_option('-e', '--erase', action='store_true', default=False, dest='erase', help='whether to completely erase original file name (but keep extendsion); by default prepends the data-time string to the original name')
     parser.add_option('-s', '--fast', action='store_true', default=False, dest='fast', help='whether to enable fast mode skipping of file names containing any date-time string')
     parser.add_option('-d', '--dry-run', action='store_true', default=False, dest='dry_run', help='whether to run in dry-mode, i.e. without actually renaming image files')
     parser.add_option('-f', '--force', action='store_true', default=False, dest='force', help='whether to force renaming even in current file name contains date-time string')
-    parser.add_option('-m', '--max-depth', action='store', type='int', default=1, dest='max_depth', help='determines maximum depth for processing directories recursively; default is 1; requires option --recursive')
+    parser.add_option('-m', '--max-depth', action='store', type='int', default=1, dest='max_depth', help='determines maximum depth for processing directories recursively; default is 1; implies option --recursive')
+    parser.add_option('', '--skip-video', action='store_true', default=False, dest='skip_video', help='whether to process image files only, i.e. skip video files')
+    parser.add_option('', '--skip-image', action='store_true', default=False, dest='skip_image', help='whether to process video files only, i.e. skip image files')
 
     (options, _) = parser.parse_args()
 
@@ -437,13 +446,13 @@ def main(argv=None):
     # # print 'args=%r' % (args,)
     # print 'options.path=%s' % (options.path)
 
-    # working_path = path.Path('E:\Zdjecia')
-    # working_path = path.Path('C:\Projekty\Zdjeciownik\sample_imgs')
-    # working_path = path.Path(u'C:\\Users\\Uparcin\\Pictures\\2017-01 biegówki Zbychowo')
+    # working_path = path.Path('E:\Pictures')
+    # working_path = path.Path('C:\Projects\Code\sample_imgs')
+    # working_path = path.Path(u'C:\\Users\\Marcin\\Pictures\\2019-06 Vacation')
     working_path = pathlib.Path(options.path)
-    print('  DEBUG: working_path="%s", .resolve()="%s"' % (working_path, working_path.resolve()))
+    # print('  DEBUG: working_path="%s", .resolve()="%s"' % (working_path, working_path.resolve()))
     if not working_path.is_dir():
-        print('ERROR! specified working directory path "%s" is not a valid directory => quitting ...' % (working_path,))
+        print('ERROR! Specified working path "%s" is not a valid directory => quitting ...' % (working_path,))
         return 1
 
 
@@ -533,69 +542,3 @@ if __name__ == "__main__":
 # "<TimestampUnix32 path='/atom[1]/movie/atom[0]/movie_hdr/creation_date', address=32, size=32>"
 # >>> str(creation_date)
 # '2017-03-03 14:36:52'
-
-
-# > python main.py -p ./sample_imgs -d
-# ./sample_imgs\20161029_202116.mp4
-#   DEBUG: date_time_str [20161029_182754]
-#   INFO: renaming [20161029_202116.mp4] to [20161029_182754_20161029_202116.mp4]; dry-run skipping ...
-# ./sample_imgs\20170112_203419_DSC_0118.JPG
-#   DEBUG: date_time_str [20170112_203419]
-#   INFO: File name [20170112_203419_DSC_0118.JPG] already contains date-time string [20170112_203419]; skipping ...
-# ./sample_imgs\20170112_203421_DSC_0119.JPG
-#   DEBUG: date_time_str [20170112_203421]
-#   INFO: File name [20170112_203421_DSC_0119.JPG] already contains date-time string [20170112_203421]; skipping ...
-# ./sample_imgs\MOV_1085.mp4
-#   DEBUG: date_time_str [20170303_143652]
-#   INFO: renaming [MOV_1085.mp4] to [20170303_143652_MOV_1085.mp4]; dry-run skipping ...
-
-# > python main.py -f -d -e -p "C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo"
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\20170106_143856_IMG_20170106_143855.jpg
-#   INFO: File name [20170106_143856_IMG_20170106_143855.jpg] already contains date-time string [20170106_143856]; forcing rename ...
-#   INFO: erasing original file name ...
-#   INFO: renaming [20170106_143856_IMG_20170106_143855.jpg] to [20170106_143856.jpg]; dry-run skipping ...
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\20170106_145231_IMG_20170107_194711.jpg
-#   INFO: File name [20170106_145231_IMG_20170107_194711.jpg] already contains date-time string [20170106_145231]; forcing rename ...
-#   INFO: erasing original file name ...
-#   INFO: renaming [20170106_145231_IMG_20170107_194711.jpg] to [20170106_145231.jpg]; dry-run skipping ...
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\20170106_145238_IMG_20170106_145237.jpg
-#   INFO: File name [20170106_145238_IMG_20170106_145237.jpg] already contains date-time string [20170106_145238]; forcing rename ...
-#   INFO: erasing original file name ...
-#   INFO: renaming [20170106_145238_IMG_20170106_145237.jpg] to [20170106_145238.jpg]; dry-run skipping ...
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\20170106_145240_IMG_20170106_145239.jpg
-#   INFO: File name [20170106_145240_IMG_20170106_145239.jpg] already contains date-time string [20170106_145240]; forcing rename ...
-#   INFO: erasing original file name ...
-#   INFO: renaming [20170106_145240_IMG_20170106_145239.jpg] to [20170106_145240.jpg]; dry-run skipping ...
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\20170106_150214_IMG_20170106_150213.jpg
-#   INFO: File name [20170106_150214_IMG_20170106_150213.jpg] already contains date-time string [20170106_150214]; forcing rename ...
-#   INFO: erasing original file name ...
-#   INFO: renaming [20170106_150214_IMG_20170106_150213.jpg] to [20170106_150214.jpg]; dry-run skipping ...
-# C:\Users\Uparcin\Pictures\2017-01 biegówki Zbychowo\Thumbs.db
-#   INFO: file [Thumbs.db] is apparently not a JPEG image; skipping ...
-
-
-# Moorcin@komp-w-pieli /cygdrive/c/Proj-katalog-zdjec
-# $ python main.py
-# cpath= E:\Zdjecia
-# cpath.realpath()= E:\Zdjecia
-# cpath.files()= [Path(u'E:\\Zdjecia\\1185355_10151877957408698_515139299_n.jpg'), Path(u'E:\\Zdjecia\\1900px.rar'), Path(u'E:\\Zdjecia\\20150406_153617.jpg'), Path(u'E:\\Zdjecia\\20150409_145145.jpg'), Path(u'E:\\Zdjecia\\20150419_155344.jpg'), Path(u'E:\\Zdjecia\\25382_408532353697_1203635_n.jpg'), Path(u'E:\\Zdjecia\\Allegro 010.JPG'), Path(u'E:\\Zdjecia\\Allegro 011.JPG'), Path(u'E:\\Zdjecia\\DSCN4047.JPG'), Path(u'E:\\Zdjecia\\DSCN4209.JPG'), Path(u'E:\\Zdjecia\\DSCN4319.JPG'), Path(u'E:\\Zdjecia\\IMG_1565.JPG'), Path(u'E:\\Zdjecia\\IMG_1721.JPG'), Path(u'E:\\Zdjecia\\IMG_5707__.jpg'), Path(u'E:\\Zdjecia\\IMG_5723__.jpg'), Path(u'E:\\Zdjecia\\IMG_5736__.jpg'), Path(u'E:\\Zdjecia\\IMG_5795__.jpg'), Path(u'E:\\Zdjecia\\IMG_9868.JPG'), Path(u'E:\\Zdjecia\\urodziny13.JPG'), Path(u'E:\\Zdjecia\\urodziny16.JPG')]
-# E:\Zdjecia\1185355_10151877957408698_515139299_n.jpg image/jpeg jpeg f0403a99c306d382749a5058118822db
-# E:\Zdjecia\1900px.rar None None  not an JPEG image(?)
-# E:\Zdjecia\20150406_153617.jpg image/jpeg jpeg 83dd04f992a503e389f4828a17c36cf3
-# E:\Zdjecia\20150409_145145.jpg image/jpeg jpeg 1c9be903315fa39bfc67d906322d7194
-# E:\Zdjecia\20150419_155344.jpg image/jpeg jpeg a497950942718a972e445bf30ecc94ae
-# E:\Zdjecia\25382_408532353697_1203635_n.jpg image/jpeg jpeg 21f5e3cf5c5368cf4a1dcec0edea2f3b
-# E:\Zdjecia\Allegro 010.JPG image/jpeg jpeg b79e2e0a78e371ecee5ced6caa97e3cb
-# E:\Zdjecia\Allegro 011.JPG image/jpeg jpeg 0778d2a9965736fa53dea4fded4fd522
-# E:\Zdjecia\DSCN4047.JPG image/jpeg jpeg 60087fe4b4f186174c089c4f83c9b653
-# E:\Zdjecia\DSCN4209.JPG image/jpeg jpeg e73044780772e86fa3bf035a5277f887
-# E:\Zdjecia\DSCN4319.JPG image/jpeg jpeg c04fd55a3d7503a28a3f3d76dec0239b
-# E:\Zdjecia\IMG_1565.JPG image/jpeg jpeg d008dbf5aae8891b9f80c2bdf47dd99c
-# E:\Zdjecia\IMG_1721.JPG image/jpeg jpeg baf2766f93fb25abda0142157e3d8366
-# E:\Zdjecia\IMG_5707__.jpg image/jpeg None 9706d2e337e90d0377c7916fdd4d687f
-# E:\Zdjecia\IMG_5723__.jpg image/jpeg None a7de59bf3de5b57aa63ccfe38d6aa4f9
-# E:\Zdjecia\IMG_5736__.jpg image/jpeg None e76290fd9282291cb05b6d936a29f4b0
-# E:\Zdjecia\IMG_5795__.jpg image/jpeg None 5bcd0bc3e5614ae04c15a4ba3dc70a24
-# E:\Zdjecia\IMG_9868.JPG image/jpeg jpeg a03a9529a254db9b37f7aa1e74faa672
-# E:\Zdjecia\urodziny13.JPG image/jpeg jpeg 1b476b5ab8723c814dea3e77ef42b2e6
-# E:\Zdjecia\urodziny16.JPG image/jpeg jpeg 733f4323dda0d391a598304d3cf7e73c
