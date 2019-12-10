@@ -60,7 +60,6 @@ Things to do:
 1. Check within Cygwin environment; ditto. Kind of obsoleted by the Windows Subsystem for Linux concept.
 1. Remove redundant option `--recursive`, use just option `--max-depth` instead.
 1. Add option to define custom format for date and time string
-1. Add option to process either movie or image files.
 1. Tweak output verbosity level.
 
 ## Credits
