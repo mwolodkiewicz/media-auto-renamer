@@ -68,6 +68,9 @@ import exifread
 import datetime
 import struct
 
+# import signal
+
+
 def get_mov_timestamps(filename):
     ''' Get the creation and modification date-time from .mov metadata.
 
@@ -82,34 +85,71 @@ def get_mov_timestamps(filename):
 
     creation_time = modification_time = None
 
+    # # Set the signal handler and a 5-second alarm
+    # signal.signal(signal.SIGALRM, handler)
+    # signal.alarm(5)
+
+    ## TODO: solve issue with this exception
+    #     atom_size = struct.unpack('>I', atom_header[0:4])[0]
+    # struct.error: unpack requires a buffer of 4 bytes
+
     # search for moov item
     with open(filename, "rb") as f:
         while True:
             atom_header = f.read(ATOM_HEADER_SIZE)
-            #~ print('atom header:', atom_header)  # debug purposes
+            # print('atom_header:', atom_header)  # debug purposes
             if atom_header[4:8] == b'moov':
                 break  # found
+            elif atom_header == b'':
+                raise RuntimeError('Could not find moov atom')
             else:
-                atom_size = struct.unpack('>I', atom_header[0:4])[0]
-                f.seek(atom_size - 8, 1)
+                try:
+                    atom_size = struct.unpack('>I', atom_header[0:4])[0]
+                except struct.error:
+                    raise RuntimeError('Failed to unpack read data')
+                # print('atom_size:', atom_size)  # debug purposes
+                if atom_size == 0:
+                    raise RuntimeError('Read data is not a valid atom header')
+                f.seek(atom_size - 8, 1)  ## os.SEEK_CUR
+                # print('f.tell():', f.tell())
 
         # found 'moov', look for 'mvhd' and timestamps
         atom_header = f.read(ATOM_HEADER_SIZE)
         if atom_header[4:8] == b'cmov':
-            raise RuntimeError('moov atom is compressed')
+            raise RuntimeError('Read "moov" atom is compressed')
         elif atom_header[4:8] != b'mvhd':
-            raise RuntimeError('expected to find "mvhd" header.')
+            raise RuntimeError('Expected to find "mvhd" atom header')
         else:
             f.seek(4, 1)
-            creation_time = struct.unpack('>I', f.read(4))[0] - EPOCH_ADJUSTER
-            creation_time = DateTime.fromtimestamp(creation_time)
-            if creation_time.year < 1990:  # invalid or censored data
-                creation_time = None
 
-            modification_time = struct.unpack('>I', f.read(4))[0] - EPOCH_ADJUSTER
-            modification_time = DateTime.fromtimestamp(modification_time)
-            if modification_time.year < 1990:  # invalid or censored data
-                modification_time = None
+            try:
+                creation_timestamp = struct.unpack('>I', f.read(4))[0] - EPOCH_ADJUSTER
+                # print('creation_timestamp: ', creation_timestamp)
+                creation_time = DateTime.fromtimestamp(creation_timestamp)
+                #? creation_time = DateTime.utcfromtimestamp(creation_timestamp)
+                # print('creation_time: ', creation_time)
+                if creation_time.year < 1990:  # invalid or censored data
+                    creation_time = None
+            except struct.error:
+                raise RuntimeError('Failed to unpack movie creation timestamp from "mvhd" atom')
+            except (OSError, OverflowError):
+                raise RuntimeError('Failed to convert movie creation timestamp to date/time')
+
+            try:
+                modification_timestamp = struct.unpack('>I', f.read(4))[0] - EPOCH_ADJUSTER
+                # print('modification_timestamp: ', modification_timestamp)
+                modification_time = DateTime.fromtimestamp(modification_timestamp)
+                #? modification_time = DateTime.utcfromtimestamp(modification_timestamp)
+                # print('modification_time: ', modification_time)
+                if modification_time.year < 1990:  # invalid or censored data
+                    modification_time = None
+            except struct.error:
+                raise RuntimeError('Failed to unpack movie modification timestamp from "mvhd" atom')
+            except (OSError, OverflowError):
+                raise RuntimeError('Failed to convert movie modification timestamp to date/time')
+
+    # # Disable the alarm
+    # signal.alarm(0)    
 
     # print('  DEBUG: creation_time: "%r", modification_time: "%r"' % (creation_time, modification_time))
 
@@ -143,8 +183,10 @@ def read_sha1_hexhash(filename):
 
 
 files_count = 0
-processed_files_count = 0
-renamed_files_count = 0
+processed_count = 0
+renamed_count = 0
+skipped_count = 0
+failed_count = 0
 
 ## pattern used only for verifying new date-time string, not for formatting
 date_time_verify_re = re.compile(r'^\d{8}_\d{6}$')
@@ -153,7 +195,7 @@ date_time_verify_re = re.compile(r'^\d{8}_\d{6}$')
 date_time_search_re = re.compile(r'^(.*)(\d{8}_\d{6}).*')
 
 def process_directory(dir_path, dir_depth, options):
-    global files_count, processed_files_count, renamed_files_count
+    global files_count, processed_count, renamed_count, skipped_count, failed_count
 
     if options.max_depth > 0:
         print('Processing directory path "%s" recursively at depth %d ... ' % (dir_path.resolve(), dir_depth))
@@ -170,7 +212,7 @@ def process_directory(dir_path, dir_depth, options):
             else:
                 print('  WARNING: Not processing sub-directory path "%s", because of reached maximum depth of %d ... ' % (tmp_path, options.max_depth))
         elif not tmp_path.is_file():
-            print('  INFO: Path "%s" is not a file => skipping ... ' % tmp_path)
+            print('  INFO: Path "%s" is not a file => ignoring ... ' % tmp_path)
             continue
 
         file_path = tmp_path
@@ -200,6 +242,7 @@ def process_directory(dir_path, dir_depth, options):
         if guessed_mime_type.startswith('image'):
             if options.skip_image is True:
                 print ('  INFO: File name "%s" guessed mime-type is image, which is not to be processed => skipping ...' % file_name)
+                skipped_count += 1
                 continue
 
             img_type = imghdr.what(file_path)
@@ -207,9 +250,10 @@ def process_directory(dir_path, dir_depth, options):
 
             if img_type != 'jpeg':
                 print('  WARNING: File path "%s" (image) does not contain JPEG image header => skipping ... ' % file_path)
+                failed_count += 1
                 continue
 
-            processed_files_count += 1
+            processed_count += 1
 
             ## optimization(?) for fast mode - skip file already containing some data/time string
             if options.fast is True:
@@ -217,10 +261,11 @@ def process_directory(dir_path, dir_depth, options):
                     current_date_time_prefix = date_time_search.groups()[0]
                     current_date_time_str = date_time_search.groups()[1]
                     if current_date_time_prefix == '':
-                        print('  WARNING: File name "%s" (image) starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (image) apparently starts with some date-time string "%s"' % (file_name, current_date_time_str), end='')
                     else:
-                        print('  WARNING: File name "%s" (image) contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (image) apparently contains some date-time string "%s"' % (file_name, current_date_time_str), end='')
                     print(' => fast mode - skipping ... ')
+                    skipped_count += 1
                     continue
 
             with open(file_path, 'rb') as img_file:
@@ -238,14 +283,16 @@ def process_directory(dir_path, dir_depth, options):
                     date_time_str = str(exif_tags['EXIF DateTimeOriginal']).replace(':', '').replace(' ', '_')
                 else:
                     print('  WARNING: File path "%s" (image) is missing an EXIF tag for original/creation date-time => skipping ... ' % file_path)
+                    failed_count += 1
                     continue
 
         elif guessed_mime_type.startswith('video'):
             if options.skip_video is True:
                 print ('  INFO: File name "%s" guessed mime-type is video, which is not ot be processed => skipping ...' % file_name)
+                skipped_count += 1
                 continue
 
-            processed_files_count += 1
+            processed_count += 1
 
             ## optimization(?) for fast mode - skip file already containing some data/time string
             if options.fast is True:
@@ -253,25 +300,23 @@ def process_directory(dir_path, dir_depth, options):
                     current_date_time_prefix = date_time_search.groups()[0]
                     current_date_time_str = date_time_search.groups()[1]
                     if current_date_time_prefix == '':
-                        print('  WARNING: File name "%s" (video) starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (video) apparently starts with some date-time string "%s"' % (file_name, current_date_time_str), end='')
                     else:
-                        print('  WARNING: File name "%s" (video) contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                        print('  WARNING: File name "%s" (video) apparently contains some date-time string "%s"' % (file_name, current_date_time_str), end='')
                     print(' => fast mode - skipping ... ')
+                    skipped_count += 1
                     continue
 
-            ## TODO: solve issue with this exception
-            # File "main3.py", line 99, in get_mov_timestamps
-            #     atom_size = struct.unpack('>I', atom_header[0:4])[0]
-            # struct.error: unpack requires a buffer of 4 bytes
-           
             try:
                 (date_time, _) = get_mov_timestamps(file_path)
-            except struct.error:
+            except RuntimeError:
                 print('  ERROR! File path "%s" (video) cannot be extracted original/creation date-time => skipping ... ' % file_path)
+                failed_count += 1
                 continue
 
             if date_time is None:
                 print('  WARNING: File path "%s" (video) is missing original/creation date-time => skipping ... ' % file_path)
+                failed_count += 1
                 continue
 
             date_time_str = date_time.strftime("%Y%m%d_%H%M%S")
@@ -288,7 +333,7 @@ def process_directory(dir_path, dir_depth, options):
         #         mov_parser.stream._input.close()
         #         continue
 
-        #     processed_files_count += 1
+        #     processed_count += 1
 
         #     moov_atom = next((field for field in mov_parser if field.description == u'Atom: moov'), None)
         #     if moov_atom is None:
@@ -342,18 +387,21 @@ def process_directory(dir_path, dir_depth, options):
 
         #     mov_parser.stream._input.close()
         else:
-            print('  INFO: File name "$s" guessed mime-type is neither image nor video => skipping ... ' % file_name)
+            print('  INFO: File name "%s" guessed mime-type is neither image nor video => skipping ... ' % file_name)
+            skipped_count += 1
             continue
 
 
         # print('  DEBUG: date_time_str [%s] ' % (date_time_str,))
         if date_time_str is None:
             print('  ERROR! Failed to determine original/creation date-time for image or video => skipping ... ')
+            failed_count += 1
             continue
 
         ## verify pattern of the date-time string
         if date_time_verify_re.match(date_time_str) is None:
             print('  ERROR! Invalid/unexpected format of determined date-time string "%s" => skipping ... ' % (date_time_str,))
+            failed_count += 1
             continue
 
 
@@ -363,22 +411,21 @@ def process_directory(dir_path, dir_depth, options):
             current_date_time_str = date_time_search.groups()[1]
             if current_date_time_prefix == '':
                 if current_date_time_str == date_time_str:
-                    print('  INFO: File name "%s" already starts with original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  INFO: File name "%s" already starts with original/creation date-time string "%s"' % (file_name, date_time_str), end='')
                 else:
-                    print('  WARNING: File name "%s" apparently starts with some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  WARNING: File name "%s" apparently starts with date-time string "%s" other than determined "%s"' % (file_name, current_date_time_str, date_time_str), end='')
             else:
                 if current_date_time_str == date_time_str:
-                    print('  INFO: File name "%s" already contains original/creation date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  INFO: File name "%s" apparently contains original/creation date-time string "%s"' % (file_name, date_time_str), end='')
                 else:
-                    print('  WARNING: File name "%s" apparently contains some other date-time string "%s"' % (file_name, current_date_time_str), end='')
+                    print('  WARNING: File name "%s" apparently contains date-time string "%s" other than determined "%s"' % (file_name, current_date_time_str, date_time_str), end='')
 
             if options.force is True:
                 print(' => forcing rename ... ')
             else:
                 print(' => skipping ... ')
+                skipped_count += 1
                 continue
-
-        renamed_files_count += 1
 
         new_file_name = ''
         if options.erase is True:
@@ -392,6 +439,8 @@ def process_directory(dir_path, dir_depth, options):
             print('  INFO: Keeping original file name "%s" => skipping ... ' % (file_name))
             continue
 
+        renamed_count += 1
+
         # new_file_path = dir_path.joinpath(new_file_name)
         new_file_path = file_path.with_name(new_file_name)
         # print('new_file_path=%s' % (new_file_path,))
@@ -401,6 +450,7 @@ def process_directory(dir_path, dir_depth, options):
                 print('  WARNING: New file name "%s" already exists and is identical file to the original file name "%s"; consider removing duplicate => skipping ... ' % (new_file_name, file_name))
             else:
                 print('  ERROR: New file name "%s" already exists and is different file than the original file name "%s"; consider manual renaming => skipping ... ' % (new_file_name, file_name))
+            failed_count += 1
             continue
 
         if options.dry_run is not True:
@@ -462,14 +512,14 @@ def main(argv=None):
     # all_file_paths = working_path.files()
     # # print '  DEBUG: all_file_paths=', all_file_paths
 
-    global files_count, processed_files_count, renamed_files_count
+    global files_count, processed_count, renamed_count, skipped_count, failed_count
 
     process_directory(dir_path, dir_depth, options)
 
     if options.dry_run is True:
-        print('Files total: %d, image/video: %d, dry-run - would be renamed: %d' % (files_count, processed_files_count, renamed_files_count))
+        print('Files total: %d, processed: %d, dry-run - would be renamed: %d, skipped: %d, failed: %d' % (files_count, processed_count, renamed_count, skipped_count, failed_count))
     else:
-        print('Files total: %d, image/video: %d, renamed: %d' % (files_count, processed_files_count, renamed_files_count))
+        print('Files total: %d, processed: %d, renamed: %d, skipped: %d, failed: %d' % (files_count, processed_count, renamed_count, skipped_count, failed_count))
 
     return 0
 
